@@ -10,6 +10,10 @@
 
 #include "mmio.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int mm_read_banner(FILE *f, MM_typecode *matcode) {
   char line[MM_MAX_LINE_LENGTH];
   char banner[MM_MAX_TOKEN_LENGTH];
@@ -202,21 +206,22 @@ int compare_entries_csr(const void *a, const void *b) {
   return ea->col - eb->col;
 }
 
+
 void entries_to_local_csr(Entry *entries, CSR_local *csr, MM_typecode *matcode) {
   qsort(entries, csr->nnz, sizeof(Entry), compare_entries_csr);
 
   csr->row_ptr = (uint32_t *)malloc((csr->nrows + 1) * sizeof(uint32_t));
   csr->col_idx = (uint32_t *)malloc(csr->nnz * sizeof(uint32_t));
-  if (mm_is_pattern(matcode)) {
-    csr->val = NULL;
-  } else {
+  csr->val = NULL;
+  if (!mm_is_pattern(*matcode)) {
+    printf("VALL\n");
     csr->val = (double *)malloc(csr->nnz * sizeof(double));
   }
 
   uint32_t i = 0;
-  for (uint32_t vertex = 0; vertex < csr->nnz; vertex++) {
-    csr->row_ptr[vertex] = i;
-    while (i < csr->nnz && vertex == (entries[i].row - 1)) {
+  for (uint32_t v = 0; v < csr->nnz; v++) {
+    csr->row_ptr[v] = i;
+    while (i < csr->nnz && v == (entries[i].row - 1)) {
       // Matrix Market format is 1-indexed, convert to 0-indexed
       csr->col_idx[i] = entries[i].col - 1;
       i++;
@@ -224,6 +229,7 @@ void entries_to_local_csr(Entry *entries, CSR_local *csr, MM_typecode *matcode) 
   }
   csr->row_ptr[csr->nrows] = csr->nnz;
 }
+
 
 CSR_local* Distr_MMIO_CSR_local_read(char *filename) {
   FILE *f = fopen(filename, "r");
@@ -265,8 +271,6 @@ CSR_local* Distr_MMIO_CSR_local_read_f(FILE *f) {
     csr->nnz = nnz * 2; // For symmetric matrices
   }
 
-  printf("Matrix size: %u x %u, nnz: %u\n", nrows, ncols, csr->nnz);
-
   Entry *entries = (Entry *)malloc(csr->nnz * sizeof(Entry));
   if (mm_read_mtx_crd_data(f, nnz, entries, matcode) != 0) {
     printf("Could not parse matrix data.\n");
@@ -290,9 +294,24 @@ CSR_local* Distr_MMIO_CSR_local_read_f(FILE *f) {
   return csr;
 }
 
-void Distr_MMIO_CSR_local_destroy(CSR_local* csr) {
-  free(csr->row_ptr);
-  free(csr->col_idx);
-  free(csr->val);
-  free(csr);
+
+void Distr_MMIO_CSR_local_destroy(CSR_local **csr) {
+  if ((*csr)->row_ptr != NULL) {
+    free((*csr)->row_ptr);
+    (*csr)->row_ptr = NULL;
+  }
+  if ((*csr)->col_idx != NULL) {
+    free((*csr)->col_idx);
+    (*csr)->col_idx = NULL;
+  }
+  if ((*csr)->val != NULL) {
+    free((*csr)->val);
+    (*csr)->val = NULL;
+  }
+  free(*csr);
+  *csr = NULL;
 }
+
+#ifdef __cplusplus
+}
+#endif
