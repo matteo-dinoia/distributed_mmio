@@ -6,10 +6,6 @@
 #ifndef MM_IO_H
 #define MM_IO_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <stdint.h>
 #include <stdio.h>
 #define MM_MAX_LINE_LENGTH 1025
@@ -20,7 +16,7 @@ typedef char MM_typecode[4];
 
 typedef struct {
     uint32_t row, col;
-    double val;
+    float val;
 } Entry;
 
 char *mm_typecode_to_str(MM_typecode matcode);
@@ -122,21 +118,18 @@ int mm_is_valid(MM_typecode matcode);		/* too complex for a macro */
 int mm_write_mtx_crd(char fname[], int M, int N, int nz, int I[], int J[], double val[], MM_typecode matcode);
 int mm_read_mtx_crd_data(FILE *f, int nz, Entry entries[], MM_typecode matcode);
 
-typedef struct {
+typedef struct csr_local {
   uint32_t 	nrows;
   uint32_t 	ncols;
   uint32_t 	nnz;
   uint32_t 	*row_ptr;
   uint32_t 	*col_idx;
-  double 	*val;
+  float 	*val;
 } CSR_local;
 
-CSR_local* Distr_MMIO_CSR_local_read(char *filename);
-CSR_local* Distr_MMIO_CSR_local_read_f(FILE *f);
+CSR_local* Distr_MMIO_CSR_local_create(uint32_t nrows, uint32_t ncols, uint32_t nnz, bool is_binary);
 void Distr_MMIO_CSR_local_destroy(CSR_local** csr);
-
-#ifdef __cplusplus
-}
-#endif
+CSR_local* Distr_MMIO_CSR_local_read(const char *filename, bool expl_val_for_bin_mtx=false);
+CSR_local* Distr_MMIO_CSR_local_read_f(FILE *f, bool expl_val_for_bin_mtx=false);
 
 #endif // MM_IO_H

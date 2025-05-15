@@ -10,10 +10,6 @@
 
 #include "mmio.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 int mm_read_banner(FILE *f, MM_typecode *matcode) {
   char line[MM_MAX_LINE_LENGTH];
   char banner[MM_MAX_TOKEN_LENGTH];
@@ -122,17 +118,23 @@ int mm_read_mtx_crd_size(FILE *f, uint32_t *nrows, uint32_t *ncols, uint32_t *nn
 /* use when I[], J[], and val[]J, and val[] are already allocated */
 /******************************************************************/
 
-int mm_read_mtx_crd_data(FILE *f, int nnz, Entry entries[], MM_typecode matcode) {
+int mm_read_mtx_crd_data(FILE *f, int nnz, Entry *entries, MM_typecode matcode) {
   int i;
   if (mm_is_real(matcode) || mm_is_integer(matcode)) {
     for (i = 0; i < nnz; i++) {
-      if (fscanf(f, "%u %u %lg\n", &entries[i].row, &entries[i].col, &entries[i].val) != 3)
+      if (fscanf(f, "%u %u %g\n", &entries[i].row, &entries[i].col, &entries[i].val) != 3)
         return MM_PREMATURE_EOF;
+      --(entries[i].row); // Convert to 0-based
+      --(entries[i].col); // Convert to 0-based
     }
   } else if (mm_is_pattern(matcode)) {
-    for (i = 0; i < nnz; i++)
+    for (i = 0; i < nnz; i++) {
       if (fscanf(f, "%u %u", &entries[i].row, &entries[i].col) != 2)
         return MM_PREMATURE_EOF;
+      --(entries[i].row); // Convert to 0-based
+      --(entries[i].col); // Convert to 0-based
+      entries[i].val = 1.0f; // Default value for pattern mtx
+    }
   } else
     return MM_UNSUPPORTED_TYPE;
 
@@ -198,99 +200,18 @@ char *mm_typecode_to_str(MM_typecode matcode) {
 
 /*  high level routines */
 
-int compare_entries_csr(const void *a, const void *b) {
-  Entry *ea = (Entry *)a;
-  Entry *eb = (Entry *)b;
-  if (ea->row != eb->row)
-    return ea->row - eb->row;
-  return ea->col - eb->col;
-}
 
-
-void entries_to_local_csr(Entry *entries, CSR_local *csr, MM_typecode *matcode) {
-  qsort(entries, csr->nnz, sizeof(Entry), compare_entries_csr);
-
-  csr->row_ptr = (uint32_t *)malloc((csr->nrows + 1) * sizeof(uint32_t));
-  csr->col_idx = (uint32_t *)malloc(csr->nnz * sizeof(uint32_t));
-  csr->val = NULL;
-  if (!mm_is_pattern(*matcode)) {
-    printf("VALL\n");
-    csr->val = (double *)malloc(csr->nnz * sizeof(double));
-  }
-
-  uint32_t i = 0;
-  for (uint32_t v = 0; v < csr->nnz; v++) {
-    csr->row_ptr[v] = i;
-    while (i < csr->nnz && v == (entries[i].row - 1)) {
-      // Matrix Market format is 1-indexed, convert to 0-indexed
-      csr->col_idx[i] = entries[i].col - 1;
-      i++;
-    }
-  }
-  csr->row_ptr[csr->nrows] = csr->nnz;
-}
-
-
-CSR_local* Distr_MMIO_CSR_local_read(char *filename) {
-  FILE *f = fopen(filename, "r");
-  if (!f) {
-    fprintf(stderr, "Could not open file [%s].\n", filename);
-    return NULL;
-  }
-  return Distr_MMIO_CSR_local_read_f(f);
-}
-
-CSR_local* Distr_MMIO_CSR_local_read_f(FILE *f) {
-  MM_typecode matcode;
-  if (mm_read_banner(f, &matcode) != 0) {
-    fprintf(stderr, "Could not process Matrix Market banner.\n");
-    return NULL;
-  }
-  if (mm_is_complex(matcode)) {
-    fprintf(stderr, "Cannot parse complex-valued matrices.\n");
-    return NULL;
-  }
-  if (mm_is_array(matcode)) {
-    fprintf(stderr, "Cannot parse array matrices.\n");
-    return NULL;
-  }
-
-  uint32_t nrows, ncols, nnz;
-  if (mm_read_mtx_crd_size(f, &nrows, &ncols, &nnz) != 0) {
-    fprintf(stderr, "Could not parse matrix size.\n");
-    return NULL;
-  }
-
+CSR_local* Distr_MMIO_CSR_local_create(uint32_t nrows, uint32_t ncols, uint32_t nnz, bool alloc_val) {
   CSR_local *csr = (CSR_local *)malloc(sizeof(CSR_local));
   csr->nrows = nrows;
   csr->ncols = ncols;
-
-  if (mm_is_general(matcode)) {
-    csr->nnz = nnz;
-  } else {
-    csr->nnz = nnz * 2; // For symmetric matrices
+  csr->nnz = nnz;
+  csr->row_ptr = (uint32_t *)malloc((nrows + 1) * sizeof(uint32_t));
+  csr->col_idx = (uint32_t *)malloc(nnz * sizeof(uint32_t));
+  csr->val = NULL;
+  if (alloc_val) {
+    csr->val = (float *)malloc(nnz * sizeof(float));
   }
-
-  Entry *entries = (Entry *)malloc(csr->nnz * sizeof(Entry));
-  if (mm_read_mtx_crd_data(f, nnz, entries, matcode) != 0) {
-    printf("Could not parse matrix data.\n");
-    free(entries);
-    return NULL;
-  }
-  fclose(f);
-
-  if (!mm_is_general(matcode))
-    // Duplicate the entries for symmetric matrices
-    for (uint32_t i = 0; i < nnz; i++) {
-      entries[i + nnz].row = entries[i].col;
-      entries[i + nnz].col = entries[i].row;
-      entries[i + nnz].val = entries[i].val;
-    }
-
-  entries_to_local_csr(entries, csr, &matcode);
-
-  free(entries);
-
   return csr;
 }
 
@@ -312,6 +233,87 @@ void Distr_MMIO_CSR_local_destroy(CSR_local **csr) {
   *csr = NULL;
 }
 
-#ifdef __cplusplus
+
+int compare_entries_csr(const void *a, const void *b) {
+  Entry *ea = (Entry *)a;
+  Entry *eb = (Entry *)b;
+  if (ea->row != eb->row)
+    return ea->row - eb->row;
+  return ea->col - eb->col;
 }
-#endif
+
+
+void entries_to_local_csr(Entry *entries, CSR_local *csr) {
+  qsort(entries, csr->nnz, sizeof(Entry), compare_entries_csr);
+
+  for (uint32_t v = 0, i = 0; v < csr->nrows; v++) {
+    csr->row_ptr[v] = i;
+    while (i < csr->nnz && entries[i].row == v) {
+      csr->col_idx[i] = entries[i].col;
+      if (csr->val != NULL) {
+        csr->val[i] = entries[i].val;
+      }
+      ++i;
+    }
+  }
+  csr->row_ptr[csr->nrows] = csr->nnz;
+}
+
+
+CSR_local* Distr_MMIO_CSR_local_read(const char *filename, bool expl_val_for_bin_mtx) {
+  FILE *f = fopen(filename, "r");
+  if (!f) {
+    fprintf(stderr, "Could not open file [%s].\n", filename);
+    return NULL;
+  }
+  return Distr_MMIO_CSR_local_read_f(f, expl_val_for_bin_mtx);
+}
+
+CSR_local* Distr_MMIO_CSR_local_read_f(FILE *f, bool expl_val_for_bin_mtx) {
+  MM_typecode matcode;
+  int err = mm_read_banner(f, &matcode);
+  if (err != 0) {
+    fprintf(stderr, "Could not process Matrix Market banner. Error (%d)\n", err);
+    return NULL;
+  }
+  if (mm_is_complex(matcode)) {
+    fprintf(stderr, "Cannot parse complex-valued matrices.\n");
+    return NULL;
+  }
+  if (mm_is_array(matcode)) {
+    fprintf(stderr, "Cannot parse array matrices.\n");
+    return NULL;
+  }
+
+  uint32_t nrows, ncols, mm_nnz, nnz;
+  if (mm_read_mtx_crd_size(f, &nrows, &ncols, &mm_nnz) != 0) {
+    fprintf(stderr, "Could not parse matrix size.\n");
+    return NULL;
+  }
+  
+  nnz = mm_is_general(matcode) ? mm_nnz : mm_nnz * 2; // For symmetric matrices
+
+  Entry *entries = (Entry *)malloc(nnz * sizeof(Entry));
+  if (mm_read_mtx_crd_data(f, mm_nnz, entries, matcode) != 0) {
+    printf("Could not parse matrix data.\n");
+    free(entries);
+    fclose(f);
+    return NULL;
+  }
+  fclose(f);
+
+  if (!mm_is_general(matcode))
+    // Duplicate the entries for symmetric matrices
+    for (uint32_t i = 0; i < mm_nnz; i++) {
+      entries[i + mm_nnz].row = entries[i].col;
+      entries[i + mm_nnz].col = entries[i].row;
+      entries[i + mm_nnz].val = entries[i].val;
+    }
+
+  CSR_local *csr = Distr_MMIO_CSR_local_create(nrows, ncols, nnz, expl_val_for_bin_mtx || !mm_is_pattern(matcode));
+  entries_to_local_csr(entries, csr);
+
+  free(entries);
+
+  return csr;
+}
