@@ -1,6 +1,6 @@
 # Distributed MMIO
 
-Lightweight `C/C++` library for local or distributed reading of Matrix Market files.
+Lightweight Templated `C++` library for local or distributed reading of Matrix Market files.
 
 ## Including "Distributed MMIO" with CMake
 
@@ -19,3 +19,17 @@ FetchContent_MakeAvailable(distributed_mmio)
 
 target_link_libraries(my_target PRIVATE distributed_mmio)
 ```
+
+## Usage Examples
+
+### Non-distributed Matrix Market File CSR Read 
+
+```c++
+#include "../distributed_mmio/include/mmio.h"
+// ...
+CSR_local<uint32_t, float> *csr_matrix = Distr_MMIO_CSR_local_read<uint32_t, float>("path/to/mtx_file");
+```
+
+# Binary Matrix Market (.bmtx)
+
+TODO

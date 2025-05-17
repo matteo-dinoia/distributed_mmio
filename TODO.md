@@ -1,7 +1,6 @@
 # TODOs
 
 * Implement Binary Matrix Market reading
-* Generalize index and value types (C++ templates?)
-* Implement other formats (e.g. COO, CSC)
+* Implement other formats (e.g. CSC)
 * Generalize the reading framework i.e. allow for user-defined functions like `entries_to_csr`
-* Make reading more efficient (fix `Entry` struct)
+* Implement reading of complex, array etc.

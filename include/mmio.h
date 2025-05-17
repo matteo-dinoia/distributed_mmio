@@ -14,15 +14,14 @@
 
 typedef char MM_typecode[4];
 
-typedef struct {
-    uint32_t row, col;
-    float val;
-} Entry;
+int required_bytes_index(uint64_t maxval);
 
 char *mm_typecode_to_str(MM_typecode matcode);
 
 int mm_read_banner(FILE *f, MM_typecode *matcode);
-int mm_read_mtx_crd_size(FILE *f, uint32_t *M, uint32_t *N, uint32_t *nz);
+int mm_read_mtx_crd_size(FILE *f, uint64_t *M, uint64_t *N, uint64_t *nz);
+
+int required_bytes_index(uint64_t maxval);
 
 /********************* MM_typecode query fucntions ***************************/
 
@@ -72,7 +71,6 @@ int mm_is_valid(MM_typecode matcode);		/* too complex for a macro */
 
 /********************* Matrix Market error codes ***************************/
 
-
 #define MM_COULD_NOT_READ_FILE	11
 #define MM_PREMATURE_EOF		12
 #define MM_NOT_MTX				13
@@ -115,21 +113,70 @@ int mm_is_valid(MM_typecode matcode);		/* too complex for a macro */
 
 /*  high level routines */
 
+template<typename IT, typename VT>
+struct Entry {
+  IT row;
+  IT col;
+  VT val;
+}; // For parsing
+
+template<typename IT, typename VT>
+struct CSR_local {
+  IT 	nrows;
+  IT 	ncols;
+  IT 	nnz;
+  IT 	*row_ptr;
+  IT 	*col_idx;
+  VT 	*val;
+};
+
+template<typename IT, typename VT>
+struct COO_local {
+  IT nrows;
+  IT ncols;
+  IT nnz;
+  IT *row;
+  IT *col;
+  VT *val;
+};
+
 int mm_write_mtx_crd(char fname[], int M, int N, int nz, int I[], int J[], double val[], MM_typecode matcode);
-int mm_read_mtx_crd_data(FILE *f, int nz, Entry entries[], MM_typecode matcode);
 
-typedef struct csr_local {
-  uint32_t 	nrows;
-  uint32_t 	ncols;
-  uint32_t 	nnz;
-  uint32_t 	*row_ptr;
-  uint32_t 	*col_idx;
-  float 	*val;
-} CSR_local;
+template<typename IT, typename VT>
+int mm_read_mtx_crd_data(FILE *f, int nz, Entry<IT, VT> entries[], MM_typecode matcode);
 
-CSR_local* Distr_MMIO_CSR_local_create(uint32_t nrows, uint32_t ncols, uint32_t nnz, bool is_binary);
-void Distr_MMIO_CSR_local_destroy(CSR_local** csr);
-CSR_local* Distr_MMIO_CSR_local_read(const char *filename, bool expl_val_for_bin_mtx=false);
-CSR_local* Distr_MMIO_CSR_local_read_f(FILE *f, bool expl_val_for_bin_mtx=false);
+// template<typename IT, typename VT>
+// int compare_entries_csr(const void *a, const void *b);
+
+// template<typename IT, typename VT>
+// Entry<IT, VT>* mm_parse_file(FILE *f, IT &nrows, IT &ncols, IT &nnz, MM_typecode *matcode);
+
+// Local CSR
+
+template<typename IT, typename VT>
+CSR_local<IT, VT>* Distr_MMIO_CSR_local_create(IT nrows, IT ncols, IT nnz, bool is_binary);
+
+template<typename IT, typename VT>
+void Distr_MMIO_CSR_local_destroy(CSR_local<IT, VT>** csr);
+
+template<typename IT, typename VT>
+CSR_local<IT, VT>* Distr_MMIO_CSR_local_read(const char *filename, bool expl_val_for_bin_mtx=false);
+
+template<typename IT, typename VT>
+CSR_local<IT, VT>* Distr_MMIO_CSR_local_read_f(FILE *f, bool expl_val_for_bin_mtx=false);
+
+// Local COO
+
+template<typename IT, typename VT>
+COO_local<IT, VT>* Distr_MMIO_COO_local_create(IT nrows, IT ncols, IT nnz, bool is_binary);
+
+template<typename IT, typename VT>
+void Distr_MMIO_COO_local_destroy(COO_local<IT, VT>** csr);
+
+template<typename IT, typename VT>
+COO_local<IT, VT>* Distr_MMIO_COO_local_read(const char *filename, bool expl_val_for_bin_mtx=false);
+
+template<typename IT, typename VT>
+COO_local<IT, VT>* Distr_MMIO_COO_local_read_f(FILE *f, bool expl_val_for_bin_mtx=false);
 
 #endif // MM_IO_H
