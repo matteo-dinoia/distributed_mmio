@@ -15,7 +15,10 @@ void print_csr(CSR_local<IT, VT> *csr, std::string header) {
   if (header != "") {
     printf("%s -- ", header.c_str());
   }
-  printf("Matrix %u x %u (%u non-zeros)\n", csr->nrows, csr->ncols, csr->nnz);
+  if constexpr (std::is_same<IT, uint64_t>::value)
+    printf("Matrix %lu x %lu (%lu non-zeros)\n", csr->nrows, csr->ncols, csr->nnz);
+  else
+    printf("Matrix %u x %u (%u non-zeros)\n", csr->nrows, csr->ncols, csr->nnz);
   printf("idx   : ");
   for (IT i = 0; i < csr->nnz; ++i) {
     printf("%3u ", i);
@@ -69,7 +72,10 @@ void print_coo(COO_local<IT, VT> *coo, std::string header) {
   if (header != "") {
     printf("%s -- ", header.c_str());
   }
-  printf("Matrix %u x %u (%u non-zeros)\n", coo->nrows, coo->ncols, coo->nnz);
+  if constexpr (std::is_same<IT, uint64_t>::value)
+    printf("Matrix %lu x %lu (%lu non-zeros)\n", coo->nrows, coo->ncols, coo->nnz);
+  else
+    printf("Matrix %u x %u (%u non-zeros)\n", coo->nrows, coo->ncols, coo->nnz);
   printf("idx: ");
   for (IT i = 0; i < coo->nnz; ++i) {
     printf("%3u ", i);
