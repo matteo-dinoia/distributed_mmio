@@ -27,7 +27,8 @@
   template COO_local<IT, VT>* Distr_MMIO_COO_local_read_f(FILE *f, bool is_bmtx, bool expl_val_for_bin_mtx, Matrix_Metadata* meta); \
   template int Distr_MMIO_COO_local_write(COO_local<IT, VT>* coo, const char *filename, bool write_as_binary, Matrix_Metadata* meta); \
   template int Distr_MMIO_COO_local_write_f(COO_local<IT, VT>* coo, FILE *f, bool write_as_binary, Matrix_Metadata* meta);
-  // template Entry<IT, VT>* mm_parse_file(FILE *f); \
+
+  // template Entry<IT, VT>* mm_parse_file(FILE *f);
   // template int compare_entries_csr(const void *a, const void *b);
 
 /**
@@ -175,7 +176,7 @@ int mm_read_mtx_crd_data(FILE *f, int nentries, Entry<IT, VT> *entries, MM_typec
     int i;
 
     if (mm_is_real(matcode) || mm_is_integer(matcode)) {
-      snprintf(fmt, sizeof(fmt), "%s %s %s", I_FMT, I_FMT, V_FMT);
+      snprintf(fmt, 32, "%s %s %s", I_FMT, I_FMT, V_FMT);
       for (i = 0; i < nentries; i++) {
         if (fscanf(f, fmt, &entries[i].row, &entries[i].col, &entries[i].val) != 3)
           return MM_PREMATURE_EOF;
@@ -428,7 +429,7 @@ int write_binary_matrix_market(FILE *f, COO_local<IT, VT> *coo, Matrix_Metadata 
   IT nentries = coo->nnz;
   if (meta->is_symmetric) { // TODO optimize
     nentries = 0;
-    for (int64_t i = 0; i < coo->nnz; ++i) {
+    for (IT i = 0; i < coo->nnz; ++i) {
       if (coo->row[i] >= coo->col[i]) {
         ++nentries;
       }
@@ -443,7 +444,7 @@ int write_binary_matrix_market(FILE *f, COO_local<IT, VT> *coo, Matrix_Metadata 
   }
 
   // Write binary data
-  for (int64_t i = 0; i < coo->nnz; ++i) {
+  for (IT i = 0; i < coo->nnz; ++i) {
     if (meta->is_symmetric && coo->row[i] < coo->col[i]) continue; // For patter matrices
 
     // Write row
@@ -481,7 +482,7 @@ int write_matrix_market(FILE *f, COO_local<IT, VT> *coo, Matrix_Metadata *meta) 
   IT nentries = coo->nnz;
   if (meta->is_symmetric) { // TODO optimize
     nentries = 0;
-    for (int64_t i = 0; i < coo->nnz; ++i) {
+    for (IT i = 0; i < coo->nnz; ++i) {
       if (coo->row[i] >= coo->col[i]) {
         ++nentries;
       }
@@ -495,7 +496,7 @@ int write_matrix_market(FILE *f, COO_local<IT, VT> *coo, Matrix_Metadata *meta) 
     return err;
   }
 
-  for (int64_t i = 0; i < coo->nnz; ++i) {
+  for (IT i = 0; i < coo->nnz; ++i) {
     if (meta->is_symmetric && coo->row[i] < coo->col[i]) continue;
     if (meta->val_type == MM_VAL_TYPE_PATTERN) {
       fprintf(f, "%ld %ld\n", (long)(coo->row[i] + 1), (long)(coo->col[i] + 1));
@@ -585,7 +586,7 @@ Entry<IT, VT>* mm_parse_file(FILE *f, IT &nrows, IT &ncols, IT &nnz, MM_typecode
     }
   }
   
-  if (sizeof(IT) < IT_required_bytes) {
+  if (sizeof(IT) < (size_t)IT_required_bytes) {
     fprintf(stderr, "Error: Index Type (IT) is too small to represent matrix indices (need at least %d bytes, got %zu bytes).\n", IT_required_bytes, sizeof(IT));
     return NULL;
   }
