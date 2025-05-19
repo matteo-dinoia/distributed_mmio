@@ -36,7 +36,7 @@ int main(int argc, char const *argv[]) {
     fprintf(stderr, "Something went wrong\n");
     exit(EXIT_FAILURE);
   }
-  print_coo(coo);
+  // print_coo(coo);
 
   std::string out_filename = filename;
   size_t last_dot = out_filename.find_last_of('.');
@@ -52,7 +52,7 @@ int main(int argc, char const *argv[]) {
     Distr_MMIO_COO_local_write(coo, out_filename.c_str(), true, &mtx_meta);
     printf("BMTX file written to %s\n", out_filename.c_str());
   } else {
-    printf("Converting BMTX file to MTX... (WIP, not implemented)\n");
+    printf("Converting BMTX file to MTX...\n");
     out_filename += ".mtx";
     Distr_MMIO_COO_local_write(coo, out_filename.c_str(), false, &mtx_meta);
     printf("MTX file written to %s\n", out_filename.c_str());
