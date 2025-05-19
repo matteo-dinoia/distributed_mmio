@@ -78,11 +78,11 @@ int mm_is_valid(MM_typecode matcode);		/* too complex for a macro */
 /********************* Matrix Market error codes ***************************/
 
 #define MM_COULD_NOT_READ_FILE	11
-#define MM_PREMATURE_EOF		12
-#define MM_NOT_MTX				13
-#define MM_NO_HEADER			14
-#define MM_UNSUPPORTED_TYPE		15
-#define MM_LINE_TOO_LONG		16
+#define MM_PREMATURE_EOF        12
+#define MM_NOT_MTX				      13
+#define MM_NO_HEADER			      14
+#define MM_UNSUPPORTED_TYPE		  15
+#define MM_LINE_TOO_LONG		    16
 #define MM_COULD_NOT_WRITE_FILE	17
 
 
@@ -116,6 +116,19 @@ int mm_is_valid(MM_typecode matcode);		/* too complex for a macro */
 #define MM_SKEW_STR		        "skew-symmetric"
 #define MM_PATTERN_STR        "pattern"
 
+enum MM_VAL_TYPE {
+  MM_VAL_TYPE_REAL,
+  MM_VAL_TYPE_INTEGER,
+  MM_VAL_TYPE_PATTERN
+};
+
+struct Matrix_Metadata {
+  MM_VAL_TYPE val_type;
+  bool is_symmetric;
+  std::string mm_header;
+  std::string mm_header_body;
+  uint8_t val_bytes;
+};
 
 /*  high level routines */
 
@@ -158,6 +171,9 @@ int mm_read_mtx_crd_data(FILE *f, int nz, Entry<IT, VT> entries[], MM_typecode m
 // Entry<IT, VT>* mm_parse_file(FILE *f, IT &nrows, IT &ncols, IT &nnz, MM_typecode *matcode);
 bool is_file_extension_bmtx(std::string filename);
 
+template<typename IT, typename VT>
+int write_binary_matrix_market(FILE *f, COO_local<IT, VT> *coo, Matrix_Metadata *meta);
+
 // Local CSR
 
 template<typename IT, typename VT>
@@ -167,10 +183,10 @@ template<typename IT, typename VT>
 void Distr_MMIO_CSR_local_destroy(CSR_local<IT, VT>** csr);
 
 template<typename IT, typename VT>
-CSR_local<IT, VT>* Distr_MMIO_CSR_local_read(const char *filename, bool expl_val_for_bin_mtx=false);
+CSR_local<IT, VT>* Distr_MMIO_CSR_local_read(const char *filename, bool expl_val_for_bin_mtx=false, Matrix_Metadata* meta=NULL);
 
 template<typename IT, typename VT>
-CSR_local<IT, VT>* Distr_MMIO_CSR_local_read_f(FILE *f, bool is_bmtx, bool expl_val_for_bin_mtx=false);
+CSR_local<IT, VT>* Distr_MMIO_CSR_local_read_f(FILE *f, bool is_bmtx, bool expl_val_for_bin_mtx=false, Matrix_Metadata* meta=NULL);
 
 // Local COO
 
@@ -181,9 +197,15 @@ template<typename IT, typename VT>
 void Distr_MMIO_COO_local_destroy(COO_local<IT, VT>** csr);
 
 template<typename IT, typename VT>
-COO_local<IT, VT>* Distr_MMIO_COO_local_read(const char *filename, bool expl_val_for_bin_mtx=false);
+COO_local<IT, VT>* Distr_MMIO_COO_local_read(const char *filename, bool expl_val_for_bin_mtx=false, Matrix_Metadata* meta=NULL);
 
 template<typename IT, typename VT>
-COO_local<IT, VT>* Distr_MMIO_COO_local_read_f(FILE *f, bool is_bmtx, bool expl_val_for_bin_mtx=false);
+COO_local<IT, VT>* Distr_MMIO_COO_local_read_f(FILE *f, bool is_bmtx, bool expl_val_for_bin_mtx=false, Matrix_Metadata* meta=NULL);
+
+template<typename IT, typename VT>
+int Distr_MMIO_COO_local_write(COO_local<IT, VT>* coo, const char *filename, bool write_as_binary, Matrix_Metadata* meta);
+
+template<typename IT, typename VT>
+int Distr_MMIO_COO_local_write_f(COO_local<IT, VT>* coo, FILE *f, bool write_as_binary, Matrix_Metadata* meta);
 
 #endif // MM_IO_H

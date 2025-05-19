@@ -2,6 +2,8 @@
 
 Lightweight Templated `C++` library for local or distributed reading of Matrix Market files.
 
+This repository integrates with MtxMan ([https://github.com/ThomasPasquali/MtxMan](https://github.com/ThomasPasquali/MtxMan)) to simplify the management of Matrix Market files, check it out!
+
 ## Including "Distributed MMIO" in your project
 
 Copy the repo into your project or clone it as a git submodule.
