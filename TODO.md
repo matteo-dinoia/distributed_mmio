@@ -6,3 +6,4 @@
 * Implement reading of complex, array etc.
 * Implement COO to CSR conversion
 * Implement CSR write
+* Accelerate with OpenMP
