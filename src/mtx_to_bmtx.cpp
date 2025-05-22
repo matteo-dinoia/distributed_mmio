@@ -61,7 +61,6 @@ int main(int argc, char const *argv[]) {
     fprintf(stderr, "Something went wrong\n");
     exit(EXIT_FAILURE);
   }
-  // print_coo(coo);
 
   std::string out_filename = filename;
   size_t last_dot = out_filename.find_last_of('.');
@@ -70,6 +69,9 @@ int main(int argc, char const *argv[]) {
   }
 
   bool converting_to_bmtx = !is_file_extension_bmtx(filename);
+
+  // print_coo(coo);
+  // if (!converting_to_bmtx) exit(0);
 
   CPU_TIMER_INIT(Conversion)
   if (converting_to_bmtx) {

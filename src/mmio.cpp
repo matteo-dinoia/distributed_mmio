@@ -198,25 +198,38 @@ int mm_read_mtx_crd_data(FILE *f, int nentries, Entry<IT, VT> *entries, MM_typec
   }
 
   // Binary BMTX parsing
+  uint64_t row, col;
   for (int i = 0; i < nentries; ++i) {
-    uint64_t row = 0;
-    if (fread(&row, idx_bytes, 1, f) != 1) return MM_PREMATURE_EOF;
+    row = 0;
+    if (fread(&row, idx_bytes, 1, f) != 1) {
+      if (feof(f)) fprintf(stderr, "Reached end of file unexpectedly while reading row at entry %d.\n", i);
+      return MM_PREMATURE_EOF;
+    }
     entries[i].row = static_cast<IT>(row);
     // --entries[i].row;
 
-    uint64_t col = 0;
-    if (fread(&col, idx_bytes, 1, f) != 1) return MM_PREMATURE_EOF;
+    col = 0;
+    if (fread(&col, idx_bytes, 1, f) != 1) {
+      if (feof(f)) fprintf(stderr, "Reached end of file unexpectedly while reading col at entry %d.\n", i);
+      return MM_PREMATURE_EOF;
+    }
     entries[i].col = static_cast<IT>(col);
     // --entries[i].col;
 
     if (!is_pattern) {
       if (val_bytes == 4) {
         float val_f;
-        if (fread(&val_f, sizeof(float), 1, f) != 1) return MM_PREMATURE_EOF;
+        if (fread(&val_f, sizeof(float), 1, f) != 1) {
+          if (feof(f)) fprintf(stderr, "Reached end of file unexpectedly while reading F32 val at entry %d.\n", i);
+          return MM_PREMATURE_EOF;
+        }
         entries[i].val = static_cast<VT>(val_f);
       } else if (val_bytes == 8) {
         double val_d;
-        if (fread(&val_d, sizeof(double), 1, f) != 1) return MM_PREMATURE_EOF;
+        if (fread(&val_d, sizeof(double), 1, f) != 1) {
+          if (feof(f)) fprintf(stderr, "Reached end of file unexpectedly while reading F64 val at entry %d.\n", i);
+          return MM_PREMATURE_EOF;
+        }
         entries[i].val = static_cast<VT>(val_d);
       } else {
         return MM_UNSUPPORTED_TYPE;
@@ -430,7 +443,7 @@ int write_binary_matrix_market(FILE *f, COO_local<IT, VT> *coo, Matrix_Metadata 
   if (meta->is_symmetric) { // TODO optimize
     nentries = 0;
     for (IT i = 0; i < coo->nnz; ++i) {
-      if (coo->row[i] >= coo->col[i]) {
+      if (coo->row[i] <= coo->col[i]) {
         ++nentries;
       }
     }
@@ -445,7 +458,7 @@ int write_binary_matrix_market(FILE *f, COO_local<IT, VT> *coo, Matrix_Metadata 
 
   // Write binary data
   for (IT i = 0; i < coo->nnz; ++i) {
-    if (meta->is_symmetric && coo->row[i] < coo->col[i]) continue; // For patter matrices
+    if (meta->is_symmetric && coo->row[i] > coo->col[i]) continue; // For patter matrices
 
     // Write row
     switch (index_bytes) {
@@ -464,7 +477,7 @@ int write_binary_matrix_market(FILE *f, COO_local<IT, VT> *coo, Matrix_Metadata 
     }
 
     // Write value
-    if (meta->val_type == MM_VAL_TYPE_PATTERN && coo->val != NULL) {
+    if (meta->val_type != MM_VAL_TYPE_PATTERN && coo->val != NULL) {
       // TODO generalize
       if (meta->val_bytes == 8) { double v = (double)coo->val[i]; fwrite(&v, sizeof(double), 1, f); }
       else                      { float  v =  (float)coo->val[i]; fwrite(&v, sizeof(float),  1, f); }
@@ -597,8 +610,9 @@ Entry<IT, VT>* mm_parse_file(FILE *f, IT &nrows, IT &ncols, IT &nnz, MM_typecode
   ncols = static_cast<IT>(_ncols);
 
   Entry<IT, VT> *entries = (Entry<IT, VT> *)malloc(_nnz * sizeof(Entry<IT, VT>));
-  if (mm_read_mtx_crd_data<IT, VT>(f, mm_nnz, entries, *matcode, is_bmtx, idx_bytes, val_bytes) != 0) {
-    printf("Could not parse matrix data.\n");
+  err = mm_read_mtx_crd_data<IT, VT>(f, mm_nnz, entries, *matcode, is_bmtx, idx_bytes, val_bytes);
+  if (err != 0) {
+    printf("Could not parse matrix data (error code: %d).\n", err);
     free(entries);
     fclose(f);
     return NULL;

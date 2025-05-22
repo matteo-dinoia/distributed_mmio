@@ -77,9 +77,9 @@ void print_coo(COO_local<IT, VT> *coo, std::string header) {
     printf("%s -- ", header.c_str());
   }
   
-  std::string I_FMT = "%3u";
+  std::string I_FMT = "%4u";
   if constexpr (std::is_same<IT, uint64_t>::value)
-    I_FMT = "%3lu";
+    I_FMT = "%4lu";
 
   char fmt[100];
   snprintf(fmt, 100, "Matrix %s x %s (%s non-zeros)\n", I_FMT.c_str(), I_FMT.c_str(), I_FMT.c_str());
@@ -93,9 +93,9 @@ void print_coo(COO_local<IT, VT> *coo, std::string header) {
   printf("\ncol: ");
   for (IT i = 0; i < coo->nnz; ++i) printf(fmt, coo->col[i]);
   if (coo->val != NULL) {
-    printf("\nval:    ");
+    printf("\nval: ");
     for (IT i = 0; i < coo->nnz; ++i) {
-      printf("%.1f ", coo->val[i]); // TODO handle different VT
+      printf("%4.1f ", coo->val[i]); // TODO handle different VT
     }
   }
   printf("\n");
