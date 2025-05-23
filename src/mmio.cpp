@@ -7,6 +7,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <cstring>
+#include <cstdlib>
 #include <algorithm>
 #include <string>
 
@@ -164,11 +166,69 @@ int mm_read_mtx_crd_size(FILE *f, uint64_t *nrows, uint64_t *ncols, uint64_t *nn
   return 0;
 }
 
+// FIXME this is a draft
+// template<typename IT, typename VT>
+// int parse_ascii_entries(FILE *f, int nentries, Entry<IT, VT> *entries, MM_typecode matcode) {
+//   // Heuristically assume a line is ~50–80 chars
+//   const size_t buf_size = nentries * 64;
+//   char *buffer = (char *)malloc(buf_size);
+//   if (!buffer) {
+//     fprintf(stderr, "Failed to allocate %zu bytes for ASCII read buffer.\n", buf_size);
+//     return MM_COULD_NOT_READ_FILE;
+//   }
+
+//   size_t read = fread(buffer, 1, buf_size, f);
+//   if (read == 0) {
+//     free(buffer);
+//     return MM_PREMATURE_EOF;
+//   }
+
+//   char *ptr = buffer;
+//   char *end = buffer + read;
+//   int count = 0;
+//   bool is_pattern = mm_is_pattern(matcode);
+//   bool is_real_or_int = mm_is_real(matcode) || mm_is_integer(matcode);
+
+//   while (ptr < end && count < nentries) {
+//     // Skip whitespace
+//     while (ptr < end && std::isspace(*ptr)) ++ptr;
+//     if (ptr >= end) break;
+
+//     // Parse row
+//     IT row = static_cast<IT>(strtoull(ptr, &ptr, 10)) - 1;
+
+//     // Parse col
+//     while (ptr < end && std::isspace(*ptr)) ++ptr;
+//     IT col = static_cast<IT>(strtoull(ptr, &ptr, 10)) - 1;
+
+//     VT val = static_cast<VT>(1.0); // default for pattern
+
+//     if (is_real_or_int) {
+//       while (ptr < end && std::isspace(*ptr)) ++ptr;
+//       val = static_cast<VT>(strtod(ptr, &ptr));
+//     }
+
+//     entries[count].row = row;
+//     entries[count].col = col;
+//     entries[count].val = val;
+//     ++count;
+//   }
+
+//   free(buffer);
+
+//   return (count == nentries) ? 0 : MM_PREMATURE_EOF;
+// }
+
 template<typename IT, typename VT>
 int mm_read_mtx_crd_data(FILE *f, int nentries, Entry<IT, VT> *entries, MM_typecode matcode, bool is_bmtx, uint8_t idx_bytes, uint8_t val_bytes) {
   bool is_pattern = mm_is_pattern(matcode);
   
+  size_t entry_size = 2 * idx_bytes + (is_pattern ? 0 : val_bytes);
+  size_t total_size = nentries * entry_size;
+
   if (!is_bmtx) {
+    // FIXME uncomment and test return parse_ascii_entries(f, nentries, entries, matcode);
+
     // Original ASCII Matrix Market parsing
     const char *I_FMT = std::is_same<IT, uint64_t>::value ? "%lu" : "%u";
     const char *V_FMT = std::is_same<VT, double>::value   ? "%lg" : "%g";
@@ -198,48 +258,56 @@ int mm_read_mtx_crd_data(FILE *f, int nentries, Entry<IT, VT> *entries, MM_typec
   }
 
   // Binary BMTX parsing
-  uint64_t row, col;
+  
+  // Allocate buffer to read the entire data block
+  uint8_t *buffer = (uint8_t *)malloc(total_size);
+  if (!buffer) {
+    fprintf(stderr, "Failed to allocate %zu bytes for input buffer.\n", total_size);
+    return MM_COULD_NOT_READ_FILE;
+  }
+
+  if (fread(buffer, 1, total_size, f) != total_size) {
+    fprintf(stderr, "Failed to read expected %zu bytes from file.\n", total_size);
+    free(buffer);
+    return MM_PREMATURE_EOF;
+  }
+
+  uint8_t *ptr = buffer;
+
   for (int i = 0; i < nentries; ++i) {
-    row = 0;
-    if (fread(&row, idx_bytes, 1, f) != 1) {
-      if (feof(f)) fprintf(stderr, "Reached end of file unexpectedly while reading row at entry %d.\n", i);
-      return MM_PREMATURE_EOF;
-    }
+    uint64_t row = 0, col = 0;
+
+    // Read row
+    memcpy(&row, ptr, idx_bytes);
     entries[i].row = static_cast<IT>(row);
-    // --entries[i].row;
+    ptr += idx_bytes;
 
-    col = 0;
-    if (fread(&col, idx_bytes, 1, f) != 1) {
-      if (feof(f)) fprintf(stderr, "Reached end of file unexpectedly while reading col at entry %d.\n", i);
-      return MM_PREMATURE_EOF;
-    }
+    // Read col
+    memcpy(&col, ptr, idx_bytes);
     entries[i].col = static_cast<IT>(col);
-    // --entries[i].col;
+    ptr += idx_bytes;
 
+    // Read val if present
     if (!is_pattern) {
       if (val_bytes == 4) {
         float val_f;
-        if (fread(&val_f, sizeof(float), 1, f) != 1) {
-          if (feof(f)) fprintf(stderr, "Reached end of file unexpectedly while reading F32 val at entry %d.\n", i);
-          return MM_PREMATURE_EOF;
-        }
+        memcpy(&val_f, ptr, sizeof(float));
         entries[i].val = static_cast<VT>(val_f);
       } else if (val_bytes == 8) {
         double val_d;
-        if (fread(&val_d, sizeof(double), 1, f) != 1) {
-          if (feof(f)) fprintf(stderr, "Reached end of file unexpectedly while reading F64 val at entry %d.\n", i);
-          return MM_PREMATURE_EOF;
-        }
+        memcpy(&val_d, ptr, sizeof(double));
         entries[i].val = static_cast<VT>(val_d);
       } else {
+        free(buffer);
         return MM_UNSUPPORTED_TYPE;
       }
+      ptr += val_bytes;
     } else {
-      entries[i].val = static_cast<VT>(1.0); // Pattern default
+      entries[i].val = static_cast<VT>(1.0);  // Default for pattern
     }
-    // printf("%u %u %.2f\n", entries[i].row, entries[i].col, entries[i].val);
   }
 
+  free(buffer);
   return 0;
 }
 
