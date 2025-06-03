@@ -177,7 +177,7 @@ int write_binary_matrix_market(FILE *f, COO_local<IT, VT> *coo, Matrix_Metadata 
 // Local CSR
 
 template<typename IT, typename VT>
-CSR_local<IT, VT>* Distr_MMIO_CSR_local_create(IT nrows, IT ncols, IT nnz, bool is_binary);
+CSR_local<IT, VT>* Distr_MMIO_CSR_local_create(IT nrows, IT ncols, IT nnz, bool alloc_val);
 
 template<typename IT, typename VT>
 void Distr_MMIO_CSR_local_destroy(CSR_local<IT, VT>** csr);
@@ -191,7 +191,7 @@ CSR_local<IT, VT>* Distr_MMIO_CSR_local_read_f(FILE *f, bool is_bmtx, bool expl_
 // Local COO
 
 template<typename IT, typename VT>
-COO_local<IT, VT>* Distr_MMIO_COO_local_create(IT nrows, IT ncols, IT nnz, bool is_binary);
+COO_local<IT, VT>* Distr_MMIO_COO_local_create(IT nrows, IT ncols, IT nnz, bool alloc_val);
 
 template<typename IT, typename VT>
 void Distr_MMIO_COO_local_destroy(COO_local<IT, VT>** csr);
