@@ -102,6 +102,8 @@ void print_coo(COO_local<IT, VT> *coo, std::string header) {
 }
 
 
+MMIO_UTILS_EXPLICIT_TEMPLATE_INST(int, float)
+MMIO_UTILS_EXPLICIT_TEMPLATE_INST(int, double)
 MMIO_UTILS_EXPLICIT_TEMPLATE_INST(uint32_t, float)
 MMIO_UTILS_EXPLICIT_TEMPLATE_INST(uint32_t, double)
 MMIO_UTILS_EXPLICIT_TEMPLATE_INST(uint64_t, float)

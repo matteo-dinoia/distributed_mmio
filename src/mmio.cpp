@@ -320,7 +320,7 @@ int required_bytes_index(uint64_t maxval) {
 }
 
 /**
- * Structs conctructors and distructors
+ * Structs constructors and destructors
  */ 
 
 // CSR
@@ -342,20 +342,22 @@ CSR_local<IT, VT>* Distr_MMIO_CSR_local_create(IT nrows, IT ncols, IT nnz, bool 
 
 template<typename IT, typename VT>
 void Distr_MMIO_CSR_local_destroy(CSR_local<IT, VT> **csr) {
-  if ((*csr)->row_ptr != NULL) {
-    free((*csr)->row_ptr);
-    (*csr)->row_ptr = NULL;
+  if (*csr != NULL) {
+    if ((*csr)->row_ptr != NULL) {
+      free((*csr)->row_ptr);
+      (*csr)->row_ptr = NULL;
+    }
+    if ((*csr)->col_idx != NULL) {
+      free((*csr)->col_idx);
+      (*csr)->col_idx = NULL;
+    }
+    if ((*csr)->val != NULL) {
+      free((*csr)->val);
+      (*csr)->val = NULL;
+    }
+    free(*csr);
+    *csr = NULL;
   }
-  if ((*csr)->col_idx != NULL) {
-    free((*csr)->col_idx);
-    (*csr)->col_idx = NULL;
-  }
-  if ((*csr)->val != NULL) {
-    free((*csr)->val);
-    (*csr)->val = NULL;
-  }
-  free(*csr);
-  *csr = NULL;
 }
 
 // COO
@@ -377,20 +379,22 @@ COO_local<IT, VT>* Distr_MMIO_COO_local_create(IT nrows, IT ncols, IT nnz, bool 
 
 template<typename IT, typename VT>
 void Distr_MMIO_COO_local_destroy(COO_local<IT, VT> **coo) {
-  if ((*coo)->row != NULL) {
-    free((*coo)->row);
-    (*coo)->row = NULL;
+  if (*coo != NULL) {
+    if ((*coo)->row != NULL) {
+      free((*coo)->row);
+      (*coo)->row = NULL;
+    }
+    if ((*coo)->col != NULL) {
+      free((*coo)->col);
+      (*coo)->col = NULL;
+    }
+    if ((*coo)->val != NULL) {
+      free((*coo)->val);
+      (*coo)->val = NULL;
+    }
+    free(*coo);
+    *coo = NULL;
   }
-  if ((*coo)->col != NULL) {
-    free((*coo)->col);
-    (*coo)->col = NULL;
-  }
-  if ((*coo)->val != NULL) {
-    free((*coo)->val);
-    (*coo)->val = NULL;
-  }
-  free(*coo);
-  *coo = NULL;
 }
 
 /**
