@@ -65,7 +65,7 @@ COO_local<uint64_t, double> *coo_matrix = Distr_MMIO_COO_local_read<uint64_t, do
 The `Distr_MMIO_CSR_local_read` and `Distr_MMIO_COO_local_read` functions take the following parameters:
 
 -   **`const char* filename`**: Path to the input matrix file.
--   **`bool expl_val_for_bin_mtx = false`** (optional): When set to `true`, this forces the allocation of the `val` array. This is useful for pattern-only matrices where you intend to populate the values yourself. For matrices that already contain values, this parameter has no effect as the value array is allocated by default.
+-   **`bool expl_val_for_bin_mtx = false`** (optional): When set to `true`, this allows the function to allocate the `val` array.
 -   **`Matrix_Metadata* meta = NULL`** (optional): A pointer to a `Matrix_Metadata` struct. If provided, the function will populate it with information from the matrix file's header.
 
 Explicit template instantiation is currently available for types:
@@ -92,7 +92,7 @@ mmio_coo_u64_f64_t *coo_matrix = mmio_read_coo_u64_f64("path/to/mtx_file", false
 The C wrapper functions (`mmio_read_*`) take the following arguments:
 
 -   **`const char* filename`**: Path to the input matrix file.
--   **`bool alloc_val`**: When set to `true`, this forces the allocation of the `val` array. This is useful for pattern-only matrices where you intend to populate the values yourself. For matrices that already contain values, this parameter has no effect as the value array is allocated by default.
+-   **`bool alloc_val`**: When set to `true`, this allows the function to allocate the `val` array.
 
 The C wrapper uses a consistent naming scheme for its types and functions:
 -   **Structs**: `mmio_<format>_<index_type>_<value_type>_t`
