@@ -28,14 +28,18 @@
   template COO_local<IT, VT>* Distr_MMIO_COO_local_read(const char *filename, bool expl_val_for_bin_mtx, Matrix_Metadata* meta); \
   template COO_local<IT, VT>* Distr_MMIO_COO_local_read_f(FILE *f, bool is_bmtx, bool expl_val_for_bin_mtx, Matrix_Metadata* meta); \
   template int Distr_MMIO_COO_local_write(COO_local<IT, VT>* coo, const char *filename, bool write_as_binary, Matrix_Metadata* meta); \
-  template int Distr_MMIO_COO_local_write_f(COO_local<IT, VT>* coo, FILE *f, bool write_as_binary, Matrix_Metadata* meta);
+  template int Distr_MMIO_COO_local_write_f(COO_local<IT, VT>* coo, FILE *f, bool write_as_binary, Matrix_Metadata* meta);\
+  template COO_local<IT, VT>* Distr_MMIO_sorted_COO_local_read(const char *filename, bool fail_if_require_sort, bool expl_val_for_bin_mtx, Matrix_Metadata* meta); \
+  template COO_local<IT, VT>* Distr_MMIO_sorted_COO_local_read_f(FILE *f, bool fail_if_require_sort, bool is_bmtx, bool is_sbmtx, bool expl_val_for_bin_mtx, Matrix_Metadata* meta); \
+  template int Distr_MMIO_sorted_COO_local_write(COO_local<IT, VT>* coo, const char *filename, bool write_as_binary, Matrix_Metadata* meta); \
+  template int Distr_MMIO_sorted_COO_local_write_f(COO_local<IT, VT>* coo, FILE *f, bool write_as_binary, Matrix_Metadata* meta);
 
   // template Entry<IT, VT>* mm_parse_file(FILE *f);
   // template int compare_entries_csr(const void *a, const void *b);
 
 /**
  * Matrix Market parsing utilities
- */ 
+ */
 
 int mm_read_banner(FILE *f, MM_typecode *matcode, bool is_bmtx, Matrix_Metadata* meta) {
   char line[MM_MAX_LINE_LENGTH];
@@ -63,7 +67,7 @@ int mm_read_banner(FILE *f, MM_typecode *matcode, bool is_bmtx, Matrix_Metadata*
     if (sscanf(line, "%s %s %s %s %s %hhu %hhu", banner, mtx, crd, data_type, storage_scheme, &idx_bytes, &val_bytes) != 7)
       return MM_PREMATURE_EOF;
     mm_set_idx_bytes(matcode, idx_bytes);
-    mm_set_val_bytes(matcode, val_bytes);    
+    mm_set_val_bytes(matcode, val_bytes);
   } else {
     if (sscanf(line, "%s %s %s %s %s", banner, mtx, crd, data_type, storage_scheme) != 5)
       return MM_PREMATURE_EOF;
@@ -222,7 +226,7 @@ int mm_read_mtx_crd_size(FILE *f, uint64_t *nrows, uint64_t *ncols, uint64_t *nn
 template<typename IT, typename VT>
 int mm_read_mtx_crd_data(FILE *f, int nentries, Entry<IT, VT> *entries, MM_typecode matcode, bool is_bmtx, uint8_t idx_bytes, uint8_t val_bytes) {
   bool is_pattern = mm_is_pattern(matcode);
-  
+
   size_t entry_size = 2 * idx_bytes + (is_pattern ? 0 : val_bytes);
   size_t total_size = nentries * entry_size;
 
@@ -258,7 +262,7 @@ int mm_read_mtx_crd_data(FILE *f, int nentries, Entry<IT, VT> *entries, MM_typec
   }
 
   // Binary BMTX parsing
-  
+
   // Allocate buffer to read the entire data block
   uint8_t *buffer = (uint8_t *)malloc(total_size);
   if (!buffer) {
@@ -321,7 +325,7 @@ int required_bytes_index(uint64_t maxval) {
 
 /**
  * Structs constructors and destructors
- */ 
+ */
 
 // CSR
 
@@ -399,7 +403,7 @@ void Distr_MMIO_COO_local_destroy(COO_local<IT, VT> **coo) {
 
 /**
  * Specific parsing functions
- */ 
+ */
 
 // CSR
 
@@ -442,7 +446,7 @@ void entries_to_local_coo(Entry<IT, VT> *entries, COO_local<IT, VT> *coo) {
 
 /**
  * Read functions
- */ 
+ */
 
 FILE *open_file_r(const char *filename) {
   FILE *f = fopen(filename, "r");
@@ -465,10 +469,13 @@ FILE *open_file_w(const char *filename) {
 bool is_file_extension_bmtx(std::string filename) {
   return filename.size() >= 5 && filename.compare(filename.size() - 5, 5, ".bmtx") == 0;
 }
+bool is_file_extension_sbmtx(std::string filename) {
+    return filename.size() >= 6 && filename.compare(filename.size() - 6, 6, ".sbmtx") == 0;
+}
 
 int write_matrix_market_header(FILE *f, Matrix_Metadata *meta, int index_bytes, uint64_t nrows, uint64_t ncols, uint64_t nentries) {
   if (!f) return MM_COULD_NOT_WRITE_FILE;
-  
+
   std::string header = meta->mm_header;
   // Strip trailing spaces
   while (!header.empty() && header.back() == ' ') header.pop_back();
@@ -655,7 +662,7 @@ Entry<IT, VT>* mm_parse_file(FILE *f, IT &nrows, IT &ncols, IT &nnz, MM_typecode
   uint8_t idx_bytes = 0;
   uint8_t val_bytes = 0;
   int IT_required_bytes = required_bytes_index(std::max(_nrows, _ncols));
-  
+
   if (is_bmtx) {
     idx_bytes = mm_get_idx_bytes(*matcode);
     val_bytes = mm_get_val_bytes(*matcode);
@@ -670,12 +677,12 @@ Entry<IT, VT>* mm_parse_file(FILE *f, IT &nrows, IT &ncols, IT &nnz, MM_typecode
       return NULL;
     }
   }
-  
+
   if (sizeof(IT) < (size_t)IT_required_bytes) {
     fprintf(stderr, "Error: Index Type (IT) is too small to represent matrix indices (need at least %d bytes, got %zu bytes).\n", IT_required_bytes, sizeof(IT));
     return NULL;
   }
-  
+
 
   _nnz = mm_is_symmetric(*matcode) ? mm_nnz * 2 : mm_nnz; // For symmetric matrices THIS IS AN UPPER BOUND
   nrows = static_cast<IT>(_nrows);
@@ -748,10 +755,10 @@ COO_local<IT, VT>* Distr_MMIO_COO_local_read_f(FILE *f, bool is_bmtx, bool expl_
   MM_typecode matcode;
   Entry<IT, VT> *entries = mm_parse_file<IT, VT>(f, nrows, ncols, nnz, &matcode, is_bmtx, meta);
   if (entries == NULL) return NULL;
-  
+
   COO_local<IT, VT> *coo = Distr_MMIO_COO_local_create<IT, VT>(nrows, ncols, nnz, expl_val_for_bin_mtx || !mm_is_pattern(matcode));
   entries_to_local_coo<IT, VT>(entries, coo);
-  
+
   free(entries);
 
   return coo;
@@ -765,7 +772,7 @@ int Distr_MMIO_COO_local_write(COO_local<IT, VT>* coo, const char *filename, boo
 template<typename IT, typename VT>
 int Distr_MMIO_COO_local_write_f(COO_local<IT, VT>* coo, FILE *f, bool write_as_binary, Matrix_Metadata* meta) {
   if (meta->mm_header.empty()) {
-    meta->mm_header = "%%MatrixMarket matrix coordinate";
+    meta->mm_header = "%%MatrixMarket matrix coordinate ";
 
     switch (meta->val_type) {
       case MM_VAL_TYPE_REAL:    { meta->mm_header += std::string(MM_REAL_STR);    break; }
@@ -774,12 +781,68 @@ int Distr_MMIO_COO_local_write_f(COO_local<IT, VT>* coo, FILE *f, bool write_as_
       default:                  { fprintf(stderr, "BUG: MM_VAL_TYPE not recognized\n"); return 100; }
     }
 
-    meta->mm_header += meta->is_symmetric ? "symmetric" : "general";
+    meta->mm_header += meta->is_symmetric ? " symmetric" : " general";
   }
-  
+
   return write_as_binary ? write_binary_matrix_market(f, coo, meta) : write_matrix_market(f, coo, meta);
 }
 
+// SORTED COO
+template<typename IT, typename VT>
+COO_local<IT, VT>* Distr_MMIO_sorted_COO_local_read(const char *filename, bool fail_if_require_sort, bool expl_val_for_bin_mtx, Matrix_Metadata* meta) {
+    return Distr_MMIO_sorted_COO_local_read_f<IT, VT>(open_file_r(filename), fail_if_require_sort,
+        is_file_extension_bmtx(std::string(filename)), is_file_extension_sbmtx(std::string(filename)), expl_val_for_bin_mtx, meta);
+}
+
+template<typename IT, typename VT>
+COO_local<IT, VT>* Distr_MMIO_sorted_COO_local_read_f(FILE *f, bool fail_if_require_sort, bool is_bmtx, bool is_sbmtx, bool expl_val_for_bin_mtx, Matrix_Metadata* meta) {
+    Matrix_Metadata metadata2;
+    if (meta == NULL) {
+        meta = &metadata2;
+    }
+
+    IT nrows, ncols, nnz;
+    MM_typecode matcode;
+    Entry<IT, VT> *entries = mm_parse_file<IT, VT>(f, nrows, ncols, nnz, &matcode, is_bmtx || is_sbmtx, meta);
+    if (entries == NULL) return NULL;
+
+
+    if (!is_sbmtx)
+    {
+        if (fail_if_require_sort) return NULL;
+        qsort(entries, nnz, sizeof(Entry<IT, VT>), compare_entries_csr<IT, VT>);
+    }
+
+
+    COO_local<IT, VT> *coo = Distr_MMIO_COO_local_create<IT, VT>(nrows, ncols, nnz, expl_val_for_bin_mtx || !mm_is_pattern(matcode));
+    entries_to_local_coo<IT, VT>(entries, coo);
+
+    free(entries);
+
+    return coo;
+}
+
+template<typename IT, typename VT>
+int Distr_MMIO_sorted_COO_local_write(COO_local<IT, VT>* coo, const char *filename, bool write_as_binary, Matrix_Metadata* meta) {
+    return Distr_MMIO_sorted_COO_local_write_f(coo, open_file_w(filename), write_as_binary, meta);
+}
+
+template<typename IT, typename VT>
+int Distr_MMIO_sorted_COO_local_write_f(COO_local<IT, VT>* coo, FILE *f, bool write_as_binary, Matrix_Metadata* meta) {
+    meta->is_symmetric = false;
+
+    meta->mm_header = "%%MatrixMarket matrix coordinate ";
+    switch (meta->val_type) {
+    case MM_VAL_TYPE_REAL:    { meta->mm_header += std::string(MM_REAL_STR);    break; }
+    case MM_VAL_TYPE_INTEGER: { meta->mm_header += std::string(MM_INT_STR);     break; }
+    case MM_VAL_TYPE_PATTERN: { meta->mm_header += std::string(MM_PATTERN_STR); break; }
+    default:                  { fprintf(stderr, "BUG: MM_VAL_TYPE not recognized\n"); return 100; }
+    }
+    meta->mm_header += " general";
+
+
+    return write_as_binary ? write_binary_matrix_market(f, coo, meta) : write_matrix_market(f, coo, meta);
+}
 
 MMIO_EXPLICIT_TEMPLATE_INST(uint32_t, float)
 MMIO_EXPLICIT_TEMPLATE_INST(uint32_t, double)
